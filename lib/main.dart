@@ -1,0 +1,424 @@
+import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:super_drag_and_drop/super_drag_and_drop.dart';
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'dilih',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      ),
+      debugShowCheckedModeBanner: false,
+      home: DnDHomePage(),
+    );
+  }
+}
+
+class DnDHomePage extends StatefulWidget {
+  const DnDHomePage({super.key});
+
+  @override
+  State<DnDHomePage> createState() => _DnDHomePageState();
+}
+
+class _DnDHomePageState extends State<DnDHomePage> {
+  bool dropAccepted = true;
+
+  Widget notConnected = Container(
+    color: const Color(0xFFE56711),
+    child: Padding(
+      padding: EdgeInsetsGeometry.all(30),
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: const Icon(Icons.link_off, color: Color.fromARGB(130, 0, 0, 0)),
+      ),
+    ),
+  );
+
+  Widget connectedToDevice = Container(
+    color: const Color(0xFF00925B),
+    child: Padding(
+      padding: EdgeInsetsGeometry.all(30),
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: const Icon(Icons.link, color: Color.fromARGB(130, 0, 0, 0)),
+      ),
+    ),
+  );
+
+  Widget receivingData = Container(
+    color: const Color(0xFF977368),
+    child: Padding(
+      padding: EdgeInsetsGeometry.all(30),
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: const Icon(Icons.download, color: Color.fromARGB(130, 0, 0, 0)),
+      ),
+    ),
+  );
+
+  Widget sendingData = Container(
+    color: const Color(0xFFFF80EC),
+    child: Padding(
+      padding: EdgeInsetsGeometry.all(30),
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: const Icon(Icons.upload, color: Color.fromARGB(130, 0, 0, 0)),
+      ),
+    ),
+  );
+
+  Widget draggableFiles = DraggableWidget(
+    child: Container(
+      color: const Color(0xFF38A3FE),
+      child: Padding(
+        padding: EdgeInsetsGeometry.all(30),
+        child: FittedBox(
+          fit: BoxFit.fill,
+          child: const Icon(
+            Icons.file_copy,
+            color: Color.fromARGB(130, 0, 0, 0),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget draggingFiles = Container(
+    color: const Color(0xFFD5576C),
+    child: Padding(
+      padding: EdgeInsetsGeometry.all(30),
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: const Icon(
+          Icons.drive_file_move_outline,
+          color: Color.fromARGB(130, 0, 0, 0),
+        ),
+      ),
+    ),
+  );
+
+  late var draggableChild = notConnected;
+  List<String> filePaths = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return DropRegion(
+      formats: Formats.standardFormats,
+      hitTestBehavior: HitTestBehavior.opaque,
+      onDropOver: (event) {
+        // You can inspect local data here, as well as formats of each item.
+        // However on certain platforms (mobile / web) the actual data is
+        // only available when the drop is accepted (onPerformDrop).
+        final item = event.session.items.first;
+        if (item.localData is Map) {
+          // This is a drag within the app and has custom local data set.
+        }
+        if (item.canProvide(Formats.plainText)) {
+          // this item contains plain text.
+        }
+        // This drop region only supports copy operation.
+        if (event.session.allowedOperations.contains(DropOperation.copy)) {
+          return DropOperation.copy;
+        } else {
+          return DropOperation.none;
+        }
+      },
+      onDropEnter: (event) {
+        // This is called when region first accepts a drag. You can use this
+        // to display a visual indicator that the drop is allowed.
+      },
+      onDropLeave: (event) {
+        // Called when drag leaves the region. Will also be called after
+        // drag completion.
+        // This is a good place to remove any visual indicators.
+      },
+      onPerformDrop: (event) async {
+        if (dropAccepted) {
+          for (final item in event.session.items) {
+            final reader = item.dataReader!;
+            if (reader.canProvide(Formats.plainText)) {
+              reader.getValue(Formats.plainText, (droppedPath) {
+                if (droppedPath != null) {
+                  setState(() {
+                    draggableChild = draggableFiles;
+                    filePaths.add(droppedPath.trim());
+                  });
+                }
+              });
+              // reader.getFile(
+              //   null,
+              //   (file) async {
+              //     print(file);
+              //     // final stream = file.getStream();
+              //     // await for (List<int> bytes in stream) {
+              //     //   // print('Received ${bytes.length} bytes.');
+              //     // }
+              //   },
+              //   onError: (error) {
+              //     print('Error reading value $error');
+              //   },
+              // );
+            }
+          }
+        }
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DragItemWidget(
+            dragItemProvider: (request) async {
+              final item = DragItem();
+              for (final path in filePaths) {
+                item.add(Formats.fileUri(Uri.file(path)));
+              }
+              request.session.dragging.addListener(() {
+                final dragging = request.session.dragging.value;
+                if (dragging) {
+                  setState(() {
+                    dropAccepted = false;
+                    draggableChild = draggingFiles;
+                  });
+                } else {
+                  setState(() {
+                    dropAccepted = true;
+                    draggableChild = draggableFiles;
+                  });
+                }
+              });
+              request.session.dragCompleted.addListener(() {
+                final dragCompleteValue = request.session.dragCompleted.value;
+                if (dragCompleteValue == DropOperation.move) {
+                  setState(() {
+                    filePaths = [];
+                    draggableChild = notConnected;
+                  });
+                }
+              });
+              return item;
+            },
+            allowedOperations: () => [DropOperation.move],
+            child: draggableChild,
+          ),
+          Container(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: EdgeInsetsGeometry.all(3),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                spacing: 5,
+                children: [
+                  IconButton(
+                    constraints: BoxConstraints(maxHeight: 30, maxWidth: 30),
+                    padding: EdgeInsets.all(2),
+                    icon: Icon(Icons.settings),
+                    style: IconButton.styleFrom(backgroundColor: Colors.grey),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const SettingsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    constraints: BoxConstraints(maxHeight: 30, maxWidth: 30),
+                    padding: EdgeInsets.all(2),
+                    color: Colors.grey.shade400,
+                    icon: Icon(Icons.delete_outline),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Color(0xFFF7001F),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        filePaths = [];
+                        draggableChild = notConnected;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  State<StatefulWidget> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  // @override
+  // void setState(VoidCallback fn) {
+  //   loadSettings();
+  // }
+
+  @override
+  Widget build(BuildContext context) {
+    loadSettings();
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Material(
+          child: ListView(
+            padding: const EdgeInsets.only(top: 20),
+            children: <Widget>[
+              ListTile(
+                title: Text("Title bar"),
+                trailing: SizedBox(
+                  width: 35,
+                  height: 25,
+                  child: FittedBox(
+                    fit: BoxFit.fill,
+                    child: Switch(
+                      value: titleBarVisible,
+                      onChanged: (bool value) {
+                        updateSettings(
+                          bool,
+                          'titleBarVisible',
+                          titleBarVisible,
+                        );
+                        setState(() {
+                          titleBarVisible = value;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              ListTile(
+                tileColor: const Color.fromARGB(107, 207, 216, 220),
+                title: Text("Always on Top"),
+                trailing: SizedBox(
+                  width: 35,
+                  height: 25,
+                  child: FittedBox(
+                    fit: BoxFit.fill,
+                    child: Switch(
+                      value: alwaysOnTop,
+                      onChanged: (bool value) {
+                        setState(() {
+                          alwaysOnTop = value;
+                          updateSettings(bool, 'alwaysOnTop', alwaysOnTop);
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: EdgeInsetsGeometry.all(4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              spacing: 5,
+              children: [
+                IconButton(
+                  constraints: BoxConstraints(maxHeight: 22, maxWidth: 22),
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.arrow_back),
+                  iconSize: 22,
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                IconButton(
+                  constraints: BoxConstraints(maxHeight: 22, maxWidth: 22),
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.replay),
+                  iconSize: 22,
+                  style: IconButton.styleFrom(backgroundColor: Colors.grey),
+                  onPressed: () {
+                    clearSettings();
+                    // Navigator.of(context).push(
+                    //   MaterialPageRoute<void>(
+                    //     builder: (context) => const SettingsPage(),
+                    //   ),
+                    // );
+                    // Navigator.pushAndRemoveUntil(
+                    //   context,
+                    //   MaterialPageRoute(builder: (context) => MyApp()),
+                    //   (route) => false,
+                    // );
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (context) => const SettingsPage(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+bool titleBarVisible = true;
+bool alwaysOnTop = false;
+
+Future<void> updateSettings(Type type, String key, dynamic value) async {
+  final prefs = await SharedPreferences.getInstance();
+  if (type == bool) {
+    await prefs.setBool(key, value);
+  } else if (type == String) {
+    await prefs.setString(key, value);
+  } else if (type == int) {
+    await prefs.setInt(key, value);
+  }
+}
+
+Future<void> loadSettings() async {
+  final prefs = await SharedPreferences.getInstance();
+  titleBarVisible = prefs.getBool('titleBarVisible') ?? true;
+  alwaysOnTop = prefs.getBool('alwaysOnTop') ?? false;
+  // String? language = prefs.getString('language') ?? 'en';
+  // int? fontSize = prefs.getInt('fontSize') ?? 14;
+}
+
+Future<void> clearSettings() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('titleBarVisible', true);
+  await prefs.setBool('alwaysOnTop', false);
+  // await prefs.setString('language', 'en');
+  // await prefs.setInt('fontSize', 16);
+}
+
+void main() async {
+  loadSettings();
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+  WindowOptions windowOptions = WindowOptions(
+    titleBarStyle: titleBarVisible
+        ? TitleBarStyle.normal
+        : TitleBarStyle.hidden,
+    alwaysOnTop: alwaysOnTop,
+    size: Size(170, 170),
+    skipTaskbar: false,
+    minimumSize: Size(170, 170),
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
+  runApp(const MyApp());
+}
