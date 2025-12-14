@@ -105,6 +105,11 @@ class _DnDHomePageState extends State<DnDHomePage> {
 
   late var draggableChild = notConnected;
   List<String> filePaths = [];
+  List<DropOperation> dropOperationChoices = [
+    DropOperation.move,
+    DropOperation.copy,
+    DropOperation.link,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +198,8 @@ class _DnDHomePageState extends State<DnDHomePage> {
               });
               request.session.dragCompleted.addListener(() {
                 final dragCompleteValue = request.session.dragCompleted.value;
-                if (dragCompleteValue == DropOperation.move) {
+                if (dragCompleteValue ==
+                    dropOperationChoices[dropOperationChoice]) {
                   setState(() {
                     filePaths = [];
                     draggableChild = notConnected;
@@ -202,7 +208,9 @@ class _DnDHomePageState extends State<DnDHomePage> {
               });
               return item;
             },
-            allowedOperations: () => [DropOperation.move],
+            allowedOperations: () => [
+              dropOperationChoices[dropOperationChoice],
+            ],
             child: draggableChild,
           ),
           Container(
@@ -214,6 +222,7 @@ class _DnDHomePageState extends State<DnDHomePage> {
                 spacing: 5,
                 children: [
                   IconButton(
+                    tooltip: "Settings",
                     constraints: BoxConstraints(maxHeight: 30, maxWidth: 30),
                     padding: EdgeInsets.all(2),
                     icon: Icon(Icons.settings),
@@ -227,6 +236,7 @@ class _DnDHomePageState extends State<DnDHomePage> {
                     },
                   ),
                   IconButton(
+                    tooltip: "Clear",
                     constraints: BoxConstraints(maxHeight: 30, maxWidth: 30),
                     padding: EdgeInsets.all(2),
                     color: Colors.grey.shade400,
@@ -259,14 +269,14 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // @override
-  // void setState(VoidCallback fn) {
-  //   loadSettings();
-  // }
+  List<DropOperation> dropOperationChoices = [
+    DropOperation.move,
+    DropOperation.copy,
+    DropOperation.link,
+  ];
 
   @override
   Widget build(BuildContext context) {
-    loadSettings();
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -275,7 +285,44 @@ class _SettingsPageState extends State<SettingsPage> {
             padding: const EdgeInsets.only(top: 20),
             children: <Widget>[
               ListTile(
+                title: Text("Drop Operation"),
+                subtitle: DropdownMenu(
+                  initialSelection: dropOperationChoices[dropOperationChoice],
+                  dropdownMenuEntries: [
+                    DropdownMenuEntry(
+                      label: "Move",
+                      value: dropOperationChoices[0],
+                    ),
+                    DropdownMenuEntry(
+                      label: "Copy",
+                      value: dropOperationChoices[1],
+                    ),
+                    DropdownMenuEntry(
+                      label: "Link",
+                      value: dropOperationChoices[2],
+                    ),
+                  ],
+                  onSelected: (value) {
+                    if (value != null) {
+                      updateSettings(
+                        int,
+                        'dropOperationChoice',
+                        dropOperationChoices.indexOf(value),
+                      );
+                      setState(() {
+                        dropOperationChoice = dropOperationChoices.indexOf(
+                          value,
+                        );
+                      });
+                    }
+                  },
+                ),
+              ),
+              ListTile(
+                tileColor: const Color.fromARGB(107, 207, 216, 220),
                 title: Text("Title bar"),
+                subtitle: Text('Requires restart!'),
+                subtitleTextStyle: TextStyle(color: Colors.red, fontSize: 11),
                 trailing: SizedBox(
                   width: 35,
                   height: 25,
@@ -298,8 +345,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               ListTile(
-                tileColor: const Color.fromARGB(107, 207, 216, 220),
                 title: Text("Always on Top"),
+                subtitle: Text('Requires restart!'),
+                subtitleTextStyle: TextStyle(color: Colors.red, fontSize: 11),
                 trailing: SizedBox(
                   width: 35,
                   height: 25,
@@ -308,9 +356,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Switch(
                       value: alwaysOnTop,
                       onChanged: (bool value) {
+                        updateSettings(bool, 'alwaysOnTop', alwaysOnTop);
                         setState(() {
                           alwaysOnTop = value;
-                          updateSettings(bool, 'alwaysOnTop', alwaysOnTop);
                         });
                       },
                     ),
@@ -329,6 +377,7 @@ class _SettingsPageState extends State<SettingsPage> {
               spacing: 5,
               children: [
                 IconButton(
+                  tooltip: "Back",
                   constraints: BoxConstraints(maxHeight: 22, maxWidth: 22),
                   padding: EdgeInsets.zero,
                   icon: Icon(Icons.arrow_back),
@@ -338,29 +387,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
                 IconButton(
+                  tooltip: "Reset settings",
                   constraints: BoxConstraints(maxHeight: 22, maxWidth: 22),
                   padding: EdgeInsets.zero,
                   icon: Icon(Icons.replay),
                   iconSize: 22,
                   style: IconButton.styleFrom(backgroundColor: Colors.grey),
-                  onPressed: () {
-                    clearSettings();
-                    // Navigator.of(context).push(
-                    //   MaterialPageRoute<void>(
-                    //     builder: (context) => const SettingsPage(),
-                    //   ),
-                    // );
-                    // Navigator.pushAndRemoveUntil(
-                    //   context,
-                    //   MaterialPageRoute(builder: (context) => MyApp()),
-                    //   (route) => false,
-                    // );
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (context) => const SettingsPage(),
-                      ),
-                    );
+                  onPressed: () async {
+                    await clearSettings();
+                    setState(() {});
                   },
                 ),
               ],
@@ -374,6 +409,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
 bool titleBarVisible = true;
 bool alwaysOnTop = false;
+int dropOperationChoice = 0;
 
 Future<void> updateSettings(Type type, String key, dynamic value) async {
   final prefs = await SharedPreferences.getInstance();
@@ -390,16 +426,15 @@ Future<void> loadSettings() async {
   final prefs = await SharedPreferences.getInstance();
   titleBarVisible = prefs.getBool('titleBarVisible') ?? true;
   alwaysOnTop = prefs.getBool('alwaysOnTop') ?? false;
-  // String? language = prefs.getString('language') ?? 'en';
-  // int? fontSize = prefs.getInt('fontSize') ?? 14;
+  dropOperationChoice = prefs.getInt('dropOperationChoice') ?? 0;
 }
 
 Future<void> clearSettings() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool('titleBarVisible', true);
   await prefs.setBool('alwaysOnTop', false);
-  // await prefs.setString('language', 'en');
-  // await prefs.setInt('fontSize', 16);
+  await prefs.setInt('dropOperationChoice', 0);
+  await loadSettings();
 }
 
 void main() async {
