@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
@@ -28,16 +31,56 @@ class DnDHomePage extends StatefulWidget {
 
 class _DnDHomePageState extends State<DnDHomePage> {
   bool dropAccepted = true;
+  List<String> filePaths = [];
+  late var draggableChild = notConnected;
+  List<DropOperation> dropOperationChoices = [
+    DropOperation.move,
+    DropOperation.copy,
+    DropOperation.link,
+  ];
 
-  Widget notConnected = Container(
-    color: const Color(0xFFE56711),
-    child: Padding(
-      padding: EdgeInsetsGeometry.all(30),
-      child: FittedBox(
-        fit: BoxFit.fill,
-        child: const Icon(Icons.link_off, color: Color.fromARGB(130, 0, 0, 0)),
+  late Widget notConnected = Stack(
+    fit: StackFit.expand,
+    children: [
+      Container(
+        color: const Color(0xFFE56711),
+        child: Padding(
+          padding: EdgeInsetsGeometry.all(30),
+          child: FittedBox(
+            fit: BoxFit.fill,
+            child: const Icon(
+              Icons.link_off,
+              color: Color.fromARGB(130, 0, 0, 0),
+            ),
+          ),
+        ),
       ),
-    ),
+      ElevatedButton(
+        onPressed: () async {
+          FilePickerResult? result = await FilePicker.platform.pickFiles(
+            allowMultiple: true,
+          );
+          if (result != null) {
+            for (String? path in result.paths.toList()) {
+              if (path != null) {
+                setState(() {
+                  filePaths.add(path);
+                  draggableChild = draggableFiles;
+                });
+              }
+            }
+          } else {}
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          overlayColor: Colors.transparent,
+          foregroundColor: const Color.fromARGB(0, 197, 197, 197),
+          surfaceTintColor: Colors.transparent,
+        ),
+        child: SizedBox(),
+      ),
+    ],
   );
 
   Widget connectedToDevice = Container(
@@ -103,14 +146,6 @@ class _DnDHomePageState extends State<DnDHomePage> {
     ),
   );
 
-  late var draggableChild = notConnected;
-  List<String> filePaths = [];
-  List<DropOperation> dropOperationChoices = [
-    DropOperation.move,
-    DropOperation.copy,
-    DropOperation.link,
-  ];
-
   @override
   Widget build(BuildContext context) {
     return DropRegion(
@@ -151,8 +186,8 @@ class _DnDHomePageState extends State<DnDHomePage> {
               reader.getValue(Formats.plainText, (droppedPath) {
                 if (droppedPath != null) {
                   setState(() {
-                    draggableChild = draggableFiles;
                     filePaths.add(droppedPath.trim());
+                    draggableChild = draggableFiles;
                   });
                 }
               });
