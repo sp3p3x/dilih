@@ -1,10 +1,10 @@
 import 'dart:io';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_drag_and_drop/super_drag_and_drop.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -33,64 +33,123 @@ class _DnDHomePageState extends State<DnDHomePage> {
   bool dropAccepted = true;
   List<String> filePaths = [];
   late var draggableChild = notConnected;
+  late bool droppedOnApp;
   List<DropOperation> dropOperationChoices = [
     DropOperation.move,
     DropOperation.copy,
     DropOperation.link,
   ];
 
-  late Widget notConnected = Stack(
-    fit: StackFit.expand,
-    children: [
-      Container(
-        color: const Color(0xFFE56711),
-        child: Padding(
-          padding: EdgeInsetsGeometry.all(30),
-          child: FittedBox(
-            fit: BoxFit.fill,
-            child: const Icon(
-              Icons.link_off,
-              color: Color.fromARGB(130, 0, 0, 0),
+  late Widget notConnected = GestureDetector(
+    onDoubleTap: () async {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+      );
+      if (result != null) {
+        for (String? path in result.paths.toList()) {
+          if (path != null) {
+            setState(() {
+              filePaths.add(path);
+              draggableChild = draggableFiles;
+            });
+          }
+        }
+      } else {}
+    },
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          color: const Color(0xFFE56711),
+          child: Padding(
+            padding: EdgeInsetsGeometry.all(30),
+            child: FittedBox(
+              fit: BoxFit.fill,
+              child: const Icon(
+                Icons.link_off,
+                color: Color.fromARGB(130, 0, 0, 0),
+              ),
             ),
           ),
         ),
-      ),
-      ElevatedButton(
-        onPressed: () async {
-          FilePickerResult? result = await FilePicker.platform.pickFiles(
-            allowMultiple: true,
-          );
-          if (result != null) {
-            for (String? path in result.paths.toList()) {
-              if (path != null) {
-                setState(() {
-                  filePaths.add(path);
-                  draggableChild = draggableFiles;
-                });
-              }
-            }
-          } else {}
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          overlayColor: Colors.transparent,
-          foregroundColor: const Color.fromARGB(0, 197, 197, 197),
-          surfaceTintColor: Colors.transparent,
+        Padding(
+          padding: EdgeInsetsGeometry.only(bottom: 3),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Drag And Drop Files\nDouble Click To Select Files',
+                maxLines: 3,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  decoration: TextDecoration.none,
+                  fontSize: 9,
+                  color: Color(0xFF703208),
+                ),
+              ),
+            ],
+          ),
         ),
-        child: SizedBox(),
-      ),
-    ],
+      ],
+    ),
   );
 
-  Widget connectedToDevice = Container(
-    color: const Color(0xFF00925B),
-    child: Padding(
-      padding: EdgeInsetsGeometry.all(30),
-      child: FittedBox(
-        fit: BoxFit.fill,
-        child: const Icon(Icons.link, color: Color.fromARGB(130, 0, 0, 0)),
-      ),
+  late Widget connectedToDevice = GestureDetector(
+    onLongPress: () {
+      print('hi');
+    },
+    onDoubleTap: () async {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+      );
+      if (result != null) {
+        for (String? path in result.paths.toList()) {
+          if (path != null) {
+            setState(() {
+              filePaths.add(path);
+              draggableChild = draggableFiles;
+            });
+          }
+        }
+      } else {}
+    },
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          color: const Color(0xFF00925B),
+          child: Padding(
+            padding: EdgeInsetsGeometry.all(30),
+            child: FittedBox(
+              fit: BoxFit.fill,
+              child: const Icon(
+                Icons.link,
+                color: Color.fromARGB(130, 0, 0, 0),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsetsGeometry.only(bottom: 3),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Drag And Drop Files\nDouble Click To Select Files\nClick And Hold For Text',
+                maxLines: 3,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  decoration: TextDecoration.none,
+                  fontSize: 9,
+                  color: Color(0xFF703208),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     ),
   );
 
@@ -206,6 +265,10 @@ class _DnDHomePageState extends State<DnDHomePage> {
               // );
             }
           }
+        } else {
+          setState(() {
+            droppedOnApp = true;
+          });
         }
       },
       child: Stack(
@@ -235,10 +298,16 @@ class _DnDHomePageState extends State<DnDHomePage> {
                 final dragCompleteValue = request.session.dragCompleted.value;
                 if (dragCompleteValue ==
                     dropOperationChoices[dropOperationChoice]) {
-                  setState(() {
-                    filePaths = [];
-                    draggableChild = notConnected;
-                  });
+                  if (droppedOnApp == true) {
+                    setState(() {
+                      droppedOnApp = false;
+                    });
+                  } else {
+                    setState(() {
+                      filePaths = [];
+                      draggableChild = notConnected;
+                    });
+                  }
                 }
               });
               return item;
@@ -253,29 +322,15 @@ class _DnDHomePageState extends State<DnDHomePage> {
             child: Padding(
               padding: EdgeInsetsGeometry.all(3),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.end,
                 spacing: 5,
                 children: [
                   IconButton(
-                    tooltip: "Settings",
-                    constraints: BoxConstraints(maxHeight: 30, maxWidth: 30),
-                    padding: EdgeInsets.all(2),
-                    icon: Icon(Icons.settings),
-                    style: IconButton.styleFrom(backgroundColor: Colors.grey),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (context) => const SettingsPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  IconButton(
                     tooltip: "Clear",
-                    constraints: BoxConstraints(maxHeight: 30, maxWidth: 30),
-                    padding: EdgeInsets.all(2),
+                    constraints: BoxConstraints(minHeight: 25, minWidth: 25),
+                    padding: EdgeInsets.all(0),
                     color: Colors.grey.shade400,
-                    icon: Icon(Icons.delete_outline),
+                    icon: Icon(Icons.delete_outline, size: 20),
                     style: IconButton.styleFrom(
                       backgroundColor: Color(0xFFF7001F),
                     ),
@@ -284,6 +339,36 @@ class _DnDHomePageState extends State<DnDHomePage> {
                         filePaths = [];
                         draggableChild = notConnected;
                       });
+                    },
+                  ),
+                  IconButton(
+                    tooltip: "Connect to device",
+                    constraints: BoxConstraints(minHeight: 25, minWidth: 25),
+                    padding: EdgeInsets.all(0),
+                    icon: Icon(Icons.link, size: 20),
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFF00925B),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const ConnectionPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    tooltip: "Settings",
+                    constraints: BoxConstraints(minHeight: 25, minWidth: 25),
+                    padding: EdgeInsets.all(0),
+                    icon: Icon(Icons.settings, size: 20),
+                    style: IconButton.styleFrom(backgroundColor: Colors.grey),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const SettingsPage(),
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -366,11 +451,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Switch(
                       value: titleBarVisible,
                       onChanged: (bool value) {
-                        updateSettings(
-                          bool,
-                          'titleBarVisible',
-                          titleBarVisible,
-                        );
+                        updateSettings(bool, 'titleBarVisible', value);
                         setState(() {
                           titleBarVisible = value;
                         });
@@ -391,7 +472,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Switch(
                       value: alwaysOnTop,
                       onChanged: (bool value) {
-                        updateSettings(bool, 'alwaysOnTop', alwaysOnTop);
+                        updateSettings(bool, 'alwaysOnTop', value);
                         setState(() {
                           alwaysOnTop = value;
                         });
@@ -442,6 +523,114 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
+class ConnectionPage extends StatefulWidget {
+  const ConnectionPage({super.key});
+
+  @override
+  State<StatefulWidget> createState() => _ConnecttionPageState();
+}
+
+class _ConnecttionPageState extends State<ConnectionPage> {
+  void blScan() async {
+    // listen to scan results
+    // Note: `onScanResults` clears the results between scans. You should use
+    //  `scanResults` if you want the current scan results *or* the results from the previous scan.
+    var subscription = FlutterBluePlus.onScanResults.listen((results) {
+      if (results.isNotEmpty) {
+        ScanResult r = results.last; // the most recently found device
+        print('${r.device.remoteId}: "${r.advertisementData.advName}" found!');
+      }
+    }, onError: (e) => print(e));
+
+    // cleanup: cancel subscription when scanning stops
+    FlutterBluePlus.cancelWhenScanComplete(subscription);
+
+    // Wait for Bluetooth enabled & permission granted
+    // In your real app you should use `FlutterBluePlus.adapterState.listen` to handle all states
+    await FlutterBluePlus.adapterState
+        .where((val) => val == BluetoothAdapterState.on)
+        .first;
+
+    // Start scanning w/ timeout
+    // Optional: use `stopScan()` as an alternative to timeout
+    await FlutterBluePlus.startScan(
+      // withServices: [Guid("180D")], // match any of the specified services
+      // withNames: ["Bluno"], // *or* any of the specified names
+      timeout: Duration(seconds: 15),
+    );
+
+    // wait for scanning to stop
+    await FlutterBluePlus.isScanning.where((val) => val == false).first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          color: Colors.white54,
+          child: ElevatedButton(
+            onPressed: () async {
+              if (await FlutterBluePlus.isSupported == false) {
+                // Bluetooth not supported by the device
+                return;
+              }
+
+              var subscription = FlutterBluePlus.adapterState.listen((
+                BluetoothAdapterState state,
+              ) {
+                if (state == BluetoothAdapterState.on) {
+                  blScan();
+                } else {
+                  // error
+                }
+              });
+
+              // for iOS, the user controls bluetooth enable/disable
+              if (Platform.isAndroid || Platform.isLinux) {
+                try {
+                  print('object');
+                  await FlutterBluePlus.turnOn();
+                  print('object');
+                } catch (e) {
+                  print(e);
+                  // Failed to turn on Bluetooth
+                }
+              }
+
+              subscription.cancel();
+            },
+            child: Text("bl connect"),
+          ),
+        ),
+        Container(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: EdgeInsetsGeometry.all(4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              spacing: 5,
+              children: [
+                IconButton(
+                  tooltip: "Back",
+                  constraints: BoxConstraints(maxHeight: 22, maxWidth: 22),
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.arrow_back),
+                  iconSize: 22,
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 bool titleBarVisible = true;
 bool alwaysOnTop = false;
 int dropOperationChoice = 0;
@@ -473,7 +662,7 @@ Future<void> clearSettings() async {
 }
 
 void main() async {
-  loadSettings();
+  await loadSettings();
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   WindowOptions windowOptions = WindowOptions(
